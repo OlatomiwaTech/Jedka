@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ChatWave
 
-## Getting Started
+ChatWave is a production-quality WhatsApp-inspired messaging platform built with Next.js 16 App Router, TypeScript, Prisma, PostgreSQL, Redis, Socket.IO, Tailwind CSS, and a secure production-ready architecture.
 
-First, run the development server:
+## Status
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+This repository now includes:
+- a clean Next.js app layout and feature shell
+- Prisma schema for the core domain model
+- local environment configuration and Docker Compose setup
+- a task plan for the staged implementation
+- initial auth, direct messaging, realtime delivery, and media upload scaffolding
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Next.js 16 App Router
+- TypeScript
+- Tailwind CSS
+- Prisma ORM + PostgreSQL
+- Redis + Socket.IO
+- MinIO/S3-compatible storage
+- Zod validation
+- Vitest + Playwright
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Local setup
 
-## Learn More
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start local infrastructure:
+   ```bash
+   docker compose up -d postgres redis minio
+   ```
+3. Copy and adjust environment variables:
+   ```bash
+   cp .env.example .env
+   ```
+4. Generate Prisma artifacts and push schema:
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
+5. Seed demo users and conversation data:
+   ```bash
+   npx tsx prisma/seed.ts
+   ```
+6. Run the app:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+## Core routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/` – dashboard and chat shell
+- `/login` – OTP-based onboarding mock flow
+- `/api/auth/request-otp` – request demo OTP
+- `/api/auth/verify-otp` – confirm OTP and issue a session token
+- `/api/messages` – message history and send endpoint
+- `/api/uploads` – upload and validation scaffold for media
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Architecture notes
 
-## Deploy on Vercel
+The app is organized in a clean, layered structure:
+- `app/` for routes and API handlers
+- `components/` for reusable UI blocks
+- `lib/` for shared utilities and Prisma access
+- `server/` for realtime Socket.IO logic
+- `prisma/` for schema and seed data
+- `docs/` for the implementation roadmap
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Security model
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The project is designed with secure defaults in mind: httpOnly session cookies, validation with Zod, authorization-aware server routes, and environment-driven secrets. End-to-end encryption is a documented later-phase requirement and should be added with a clear library choice and constraints review.
+
+## Next milestone
+
+The next implementation phase will focus on:
+- complete auth middleware and protected route enforcement
+- real database-backed message persistence and conversation APIs
+- Socket.IO room management and typing indicators for direct chats
+- media storage integration with MinIO and signed URLs
+- richer chat UI states and persistence workflows
