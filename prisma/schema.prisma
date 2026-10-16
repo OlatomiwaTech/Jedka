@@ -1,0 +1,330 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  BUSINESS
+  ADMIN
+}
+
+enum ConversationType {
+  DIRECT
+  GROUP
+  COMMUNITY
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE_NOTE
+  DOCUMENT
+  LOCATION
+  LIVE_LOCATION
+  CONTACT
+  STICKER
+  GIF
+  SYSTEM
+  CALL_EVENT
+  POLL
+}
+
+enum StatusPrivacy {
+  ALL_CONTACTS
+  SELECTED_CONTACTS
+  EXCEPT_CONTACTS
+}
+
+enum CallType {
+  AUDIO
+  VIDEO
+}
+
+enum CallStatus {
+  RINGING
+  ONGOING
+  ENDED
+  MISSED
+  DECLINED
+  CANCELED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  phone         String?   @unique
+  countryCode   String?
+  displayName   String
+  avatarUrl     String?
+  about         String?
+  lastSeenAt    DateTime?
+  isOnline      Boolean   @default(false)
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions      Session[]
+  contacts      Contact[]
+  ownedChats    Conversation[] @relation("ConversationOwner")
+  messages      Message[]
+  memberships   ConversationMember[]
+  statuses      Status[]
+  callsInitiated Call[] @relation("CallInitiator")
+  mediaAssets   MediaAsset[]
+  auditLogs     AuditLog[]
+  business      BusinessProfile?
+
+  @@index([phone])
+  @@index([displayName])
+}
+
+model Session {
+  id            String    @id @default(cuid())
+  userId        String
+  deviceName    String?
+  deviceType    String?
+  refreshTokenHash String
+  ipAddress     String?
+  userAgent     String?
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Contact {
+  id            String   @id @default(cuid())
+  ownerId       String
+  contactUserId String
+  nickname      String?
+  isBlocked     Boolean  @default(false)
+  isFavorite    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, contactUserId])
+  @@index([ownerId])
+}
+
+model Conversation {
+  id              String              @id @default(cuid())
+  type            ConversationType
+  title           String?
+  avatarUrl       String?
+  description     String?
+  inviteCode      String?
+  createdById     String?
+  communityId     String?
+  isArchived      Boolean             @default(false)
+  isPinned        Boolean             @default(false)
+  mutedUntil      DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  createdBy       User?               @relation("ConversationOwner", fields: [createdById], references: [id])
+  members        ConversationMember[]
+  messages       Message[]
+  calls          Call[]
+  community      Community?          @relation(fields: [communityId], references: [id])
+
+  @@index([type])
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  role           MemberRole @default(MEMBER)
+  joinedAt       DateTime   @default(now())
+  lastReadMessageId String?
+  unreadCount    Int        @default(0)
+  notificationLevel String? 
+  isPinned       Boolean    @default(false)
+  isArchived     Boolean    @default(false)
+  leftAt         DateTime?
+
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id                String      @id @default(cuid())
+  conversationId    String
+  senderId          String
+  type              MessageType  @default(TEXT)
+  body              String?
+  mediaUrl          String?
+  thumbnailUrl      String?
+  mimeType          String?
+  fileSize          Int?
+  durationSeconds   Int?
+  fileName          String?
+  latitude          Float?
+  longitude         Float?
+  locationExpiresAt DateTime?
+  replyToId         String?
+  forwardedFromId   String?
+  editedAt          DateTime?
+  deletedAt         DateTime?
+  isViewOnce        Boolean     @default(false)
+  expiresAt         DateTime?
+  isStarred         Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender            User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  receipts          MessageReceipt[]
+  reactions         MessageReaction[]
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+model MessageReceipt {
+  id           String    @id @default(cuid())
+  messageId    String
+  userId       String
+  deliveredAt  DateTime?
+  readAt       DateTime?
+  playedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  message      Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+model Status {
+  id             String        @id @default(cuid())
+  userId         String
+  type           MessageType   @default(TEXT)
+  mediaUrl       String?
+  caption        String?
+  backgroundColor String?
+  privacy        StatusPrivacy @default(ALL_CONTACTS)
+  expiresAt      DateTime
+  createdAt      DateTime      @default(now())
+
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model Call {
+  id            String    @id @default(cuid())
+  conversationId String
+  initiatorId   String
+  type          CallType
+  status        CallStatus @default(RINGING)
+  startedAt     DateTime?
+  endedAt       DateTime?
+  durationSeconds Int?
+  createdAt     DateTime  @default(now())
+
+  conversation  Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  initiator     User         @relation("CallInitiator", fields: [initiatorId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  avatarUrl   String?
+  ownerId     String
+  createdAt   DateTime @default(now())
+
+  conversations Conversation[]
+
+  @@index([ownerId])
+}
+
+model BusinessProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  businessName   String
+  category       String?
+  address        String?
+  email          String?
+  website        String?
+  description    String?
+  hours          String?
+  catalogItems   Json?
+  quickReplies    Json?
+  labels         Json?
+  greetingMessage String?
+  awayMessage    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MediaAsset {
+  id           String   @id @default(cuid())
+  ownerId      String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String?
+  width        Int?
+  height       Int?
+  durationSeconds Int?
+  scanStatus   String   @default("pending")
+  createdAt    DateTime @default(now())
+
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+}
